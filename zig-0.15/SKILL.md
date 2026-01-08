@@ -1,6 +1,14 @@
 ---
 name: zig-0.15
 description: This skill provides Zig 0.15.x API guidance and should be used when writing or reviewing Zig code. It ensures correct usage of Zig 0.15 APIs, preventing common mistakes from using outdated 0.11/0.12/0.13/0.14 patterns. Essential for ArrayList, std.Io.Writer/Reader (Writergate), HTTP client, Ed25519, JSON, and type introspection APIs.
+license: MIT
+compatibility:
+  - opencode
+  - claude-code
+metadata:
+  version: "0.15.2"
+  language: "zig"
+  category: "programming-language"
 ---
 
 # Zig 0.15.x Programming Guide
@@ -317,17 +325,49 @@ pub fn format(self: Self, writer: anytype) !void {
 // Usage: std.fmt.bufPrint(&buf, "{f}", .{value});
 ```
 
-### JSON Parsing
+### JSON Parsing and Serialization
 
 ```zig
-// ✅ CORRECT (0.15+)
-const parsed = try std.json.parseFromSlice(MyStruct, allocator, json_string, .{});
+const MyStruct = struct {
+    name: []const u8,
+    value: u32,
+};
+
+// ✅ CORRECT: Parsing (0.15+)
+const json_str =
+    \\{"name": "test", "value": 42}
+;
+const parsed = try std.json.parseFromSlice(MyStruct, allocator, json_str, .{});
 defer parsed.deinit();
 const data = parsed.value;
 
-// Serialize
-const json_output = try std.json.stringifyAlloc(allocator, data, .{});
-defer allocator.free(json_output);
+// ✅ CORRECT: Serialization (0.15.2 - writer-based API)
+// Note: There is NO stringifyAlloc in 0.15.2!
+
+// Method 1: Using std.json.Stringify with Allocating writer
+var out: std.Io.Writer.Allocating = .init(allocator);
+defer out.deinit();
+var stringify: std.json.Stringify = .{
+    .writer = &out.writer,
+    .options = .{},
+};
+try stringify.write(data);
+const json_output = out.written();
+
+// Method 2: Using std.fmt with json.fmt wrapper
+const formatted = try std.fmt.allocPrint(allocator, "{f}", .{std.json.fmt(data, .{})});
+defer allocator.free(formatted);
+
+// Method 3: To fixed buffer
+var buf: [1024]u8 = undefined;
+var fbs = std.io.fixedBufferStream(&buf);
+var writer = fbs.writer();
+var stringify2: std.json.Stringify = .{
+    .writer = &writer.adaptToNewApi(&.{}).new_interface,
+    .options = .{},
+};
+try stringify2.write(data);
+const output = fbs.getWritten();
 ```
 
 ### Memory/Formatting
@@ -721,6 +761,24 @@ const val: f32 = 123_456_789;  // error: cannot represent precisely
 // ✅ CORRECT - opt-in to floating-point rounding
 const val: f32 = 123_456_789.0;
 ```
+
+## Extended References (This Skill)
+
+> 详细的 API 参考和迁移指南请查阅以下文档：
+
+| 文档 | 路径 | 内容 |
+|------|------|------|
+| **标准库 API 详解** | `references/stdlib-api-reference.md` | ArrayList、HashMap、HTTP Client、Ed25519、Base64、JSON、@typeInfo、std.fmt 等完整 API 参考 |
+| **迁移模式指南** | `references/migration-patterns.md` | 从 0.13/0.14 迁移到 0.15 的详细对照，包括 Writergate、ArrayList、Build System 等 |
+| **生产级代码库** | `references/production-codebases.md` | Sig（Solana）、ZML（AI）、Zeam（Ethereum）、Bun、Tigerbeetle 等项目学习指南，以及 0.15.x 兼容库列表 |
+| **版本策略** | `VERSIONING.md` | 版本兼容性说明和更新策略 |
+
+### 快速查阅建议
+
+- **编写 HTTP 请求？** → 查看 `references/stdlib-api-reference.md` 的 `std.http.Client` 部分
+- **ArrayList 报错？** → 查看 `references/migration-patterns.md` 的 `ArrayList Migration` 部分
+- **学习最佳实践？** → 查看 `references/production-codebases.md` 中的 Sig 项目（Solana 验证器）
+- **寻找第三方库？** → 查看 `references/production-codebases.md` 的 `Smaller Learning Projects` 表格
 
 ## References
 

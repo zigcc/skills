@@ -73,43 +73,66 @@ git submodule update --remote
 
 ## 在 OpenCode 中使用
 
-### 方法 1: 配置文件（推荐）
+OpenCode 支持以下技能文件位置：
 
-在项目根目录创建 `.opencode/config.json`：
+| 位置 | 路径 | 说明 |
+|------|------|------|
+| 项目本地 | `.opencode/skill/<name>/SKILL.md` | 项目级技能 |
+| 全局 | `~/.config/opencode/skill/<name>/SKILL.md` | 用户级技能 |
+| Claude 兼容（项目） | `.claude/skills/<name>/SKILL.md` | Claude Code 兼容 |
+| Claude 兼容（全局） | `~/.claude/skills/<name>/SKILL.md` | Claude Code 兼容 |
+
+### 方法 1: 项目本地安装（推荐）
+
+```bash
+# 复制技能到项目的 .opencode/skill 目录
+mkdir -p .opencode/skill
+cp -r zig-0.15 .opencode/skill/
+
+# 或者创建符号链接
+ln -s $(pwd)/zig-0.15 .opencode/skill/zig-0.15
+```
+
+### 方法 2: 全局安装
+
+```bash
+# 复制技能到用户配置目录
+mkdir -p ~/.config/opencode/skill
+cp -r zig-0.15 ~/.config/opencode/skill/
+
+# 这样所有项目都可以使用此技能
+```
+
+### 方法 3: Claude Code 兼容安装
+
+```bash
+# 项目级（.claude/skills）
+mkdir -p .claude/skills
+cp -r zig-0.15 .claude/skills/
+
+# 或全局（~/.claude/skills）
+mkdir -p ~/.claude/skills
+cp -r zig-0.15 ~/.claude/skills/
+```
+
+### 权限配置
+
+在 `opencode.json` 中配置技能权限：
 
 ```json
 {
-  "skills": [
-    {
-      "name": "zig-0.15",
-      "path": "skills/zig-0.15/SKILL.md",
-      "auto_load": true,
-      "triggers": [".zig", "build.zig"]
+  "permission": {
+    "skill": {
+      "zig-0.15": "allow"
     }
-  ]
+  }
 }
 ```
 
-### 方法 2: 在 `.opencode/instructions.md` 中引用
-
-```markdown
-# OpenCode 项目指令
-
-## 技能
-
-当处理 Zig 代码时，始终参考 `skills/zig-0.15/SKILL.md` 中的 API 指南。
-
-## 规则
-
-1. 使用 Zig 0.15+ 的新 ArrayList API（需要显式传递 allocator）
-2. 使用新的 std.Io.Writer/Reader 接口
-3. HTTP 客户端使用 `client.request()` 而非旧的 `client.open()`
-```
-
-### 方法 3: 会话中手动加载
+### 方法 4: 会话中手动加载
 
 ```
-@file skills/zig-0.15/SKILL.md
+@file .opencode/skill/zig-0.15/SKILL.md
 
 帮我编写一个使用 ArrayList 的程序
 ```

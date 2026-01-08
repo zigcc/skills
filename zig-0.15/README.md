@@ -47,41 +47,75 @@ skills/zig-0.15/
 
 ## Usage
 
-### For Claude/OpenCode Users
+### OpenCode Installation
 
-**Method 1: Direct Reference**
+OpenCode searches for skills in these locations:
 
-Ask the AI to read the skill file:
+| Location | Path | Scope |
+|----------|------|-------|
+| Project-local | `.opencode/skill/<name>/SKILL.md` | Current project only |
+| Global | `~/.config/opencode/skill/<name>/SKILL.md` | All projects |
+| Claude-compatible (project) | `.claude/skills/<name>/SKILL.md` | Current project only |
+| Claude-compatible (global) | `~/.claude/skills/<name>/SKILL.md` | All projects |
 
+**Method 1: Project-local Installation (Recommended)**
+
+```bash
+# Copy skill to project's .opencode/skill directory
+mkdir -p .opencode/skill
+cp -r zig-0.15 .opencode/skill/
+
+# The skill name must match the directory name
+# Result: .opencode/skill/zig-0.15/SKILL.md
 ```
-Read skills/zig-0.15/SKILL.md and help me write an HTTP client
+
+**Method 2: Global Installation**
+
+```bash
+# Copy skill to user config directory (available in all projects)
+mkdir -p ~/.config/opencode/skill
+cp -r zig-0.15 ~/.config/opencode/skill/
 ```
 
-**Method 2: Include in System Prompt**
+**Method 3: Claude Code Compatible Installation**
 
-Add to your project's `AGENTS.md` or system configuration:
+```bash
+# Project-level
+mkdir -p .claude/skills
+cp -r zig-0.15 .claude/skills/
+
+# Or global
+mkdir -p ~/.claude/skills
+cp -r zig-0.15 ~/.claude/skills/
+```
+
+### Permission Configuration
+
+Configure skill permissions in `opencode.json`:
+
+```json
+{
+  "permission": {
+    "skill": {
+      "zig-0.15": "allow"
+    }
+  }
+}
+```
+
+Available permission values:
+- `allow` - Always allow this skill
+- `deny` - Never allow this skill
+- `ask` - Ask for permission each time
+
+### For Claude Code Users
+
+Add to your project's `CLAUDE.md` or system configuration:
 
 ```markdown
 ## Zig Development
 
-When writing Zig code, always reference `skills/zig-0.15/SKILL.md` for correct API usage.
-```
-
-**Method 3: OpenCode Config (if supported)**
-
-Create `.opencode/config.json`:
-
-```json
-{
-  "skills": [
-    {
-      "name": "zig-0.15",
-      "path": "skills/zig-0.15/SKILL.md",
-      "auto_load": true,
-      "triggers": [".zig", "build.zig"]
-    }
-  ]
-}
+When writing Zig code, always reference the zig-0.15 skill for correct API usage.
 ```
 
 ### For Other AI Tools
@@ -91,11 +125,10 @@ Copy the contents of `SKILL.md` into your AI tool's context or knowledge base.
 ### As a Git Submodule
 
 ```bash
-# Add to your project
-git submodule add https://github.com/user/zig-0.15-skill.git skills/zig-0.15
-
-# Update
-git submodule update --remote
+# Clone and install to OpenCode skill directory
+git clone https://github.com/user/zig-0.15-skill.git
+mkdir -p .opencode/skill
+cp -r zig-0.15-skill/zig-0.15 .opencode/skill/
 ```
 
 ## Key API Changes Covered
