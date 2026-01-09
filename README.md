@@ -12,6 +12,13 @@
 |------|------|----------|
 | [zig-0.15](./zig-0.15/) | Zig 语言 API 指南 | Zig 0.15.x |
 
+
+## 在 codex中安装 skill
+
+你直接说在codex的cli中说 `https://github.com/zigcc/skills 是的你需要安装 这个里面的所有的skill都安装`
+
+他就会提示你都安装了
+
 ## 在 Claude Code 中使用
 
 ### 方法 1: 项目级配置（推荐）
