@@ -43,6 +43,18 @@ This skill captures gotchas hit when porting a 0.15 project to **Zig 0.16-dev** 
 
 ## Format options
 - `std.fmt.Options` replaces `FormatOptions`.
+- `std.fmt.format` helper is gone; call `writer.print` directly (writers live in `std.Io.Writer`).
+
+## Randomness / crypto changes
+- `std.crypto.random` was removed. Use an `std.Io` instance: `const io = std.Io.Threaded.global_single_threaded.ioBasic(); io.random(&buf);`.
+- `Ed25519.KeyPair.generate` now requires an `io: std.Io` argument: `Ed25519.KeyPair.generate(io);`.
+
+## Enum conversion
+- `std.meta.intToEnum` removed. Use `std.enums.fromInt(EnumType, value)` (returns `?EnumType`).
+
+## Fixed-buffer writers in tests
+- `std.io.fixedBufferStream` was removed. For in-memory writes use `var w = std.Io.Writer.fixed(buf);` and read bytes with `std.Io.Writer.buffered(&w)`.
+- `std.ArrayList` no longer has `.init(allocator)` shorthand; use `.initBuffer(slice)` for stack buffers or managed variants.
 
 ## Stream/Conn helpers we added (compat pattern)
 - Build a thin compat layer that wraps platform syscalls to reintroduce `Stream { read, writeAll, close, readAtLeast }` and address parsing/formatting, plus `tcpConnectToHost/Address` using raw sockets.
