@@ -11,8 +11,8 @@
 | 技能 | 描述 | 目标版本 |
 |------|------|----------|
 | [zig-0.15](./zig-0.15/) | Zig 语言 API 指南 | Zig 0.15.x |
-| [zig-0.16](./zig-0.16/) | Zig 0.16-dev 迁移与兼容说明 | Zig 0.16-dev |
-| [zig-memory](./zig-memory/) | Zig 内存管理与资源清理规范 | Zig 0.15.x |
+| [zig-0.16](./zig-0.16/) | Zig 0.16.0 API 指南与迁移说明 | Zig 0.16.0 |
+| [zig-memory](./zig-memory/) | Zig 内存管理与资源清理规范 | Zig 0.15.x / 0.16.x |
 
 
 ## 在 Codex 中安装 skill
@@ -44,7 +44,7 @@ read https://github.com/zigcc/skills
 当编写 Zig 代码时，请按版本与场景引用对应技能：
 
 - Zig 0.15.x 项目：`skills/zig-0.15/SKILL.md`
-- Zig 0.16-dev 迁移/兼容：`skills/zig-0.16/SKILL.md`
+- Zig 0.16.0 项目/迁移：`skills/zig-0.16/SKILL.md`
 - 内存管理与泄漏排查：`skills/zig-memory/SKILL.md`
 
 ## 自动加载规则
@@ -60,7 +60,7 @@ read https://github.com/zigcc/skills
 ```
 请先判断目标 Zig 版本：
 - 0.15.x：先阅读 skills/zig-0.15/SKILL.md
-- 0.16-dev：先阅读 skills/zig-0.16/SKILL.md
+- 0.16.0：先阅读 skills/zig-0.16/SKILL.md
 并在涉及内存分配时再阅读 skills/zig-memory/SKILL.md
 
 示例：请按 Zig 0.15.x 帮我编写一个 HTTP 客户端
@@ -80,8 +80,8 @@ read https://github.com/zigcc/skills
     },
     "zig-0.16": {
       "path": "skills/zig-0.16/SKILL.md",
-      "description": "Zig 0.16-dev migration notes",
-      "triggers": ["std.Io", "std.net", "tcp", "random", "tls"]
+      "description": "Zig 0.16.0 API guidance and migration notes",
+      "triggers": ["std.Io", "std.net", "tcp", "random", "tls", "@Type", "@cImport"]
     },
     "zig-memory": {
       "path": "skills/zig-memory/SKILL.md",
@@ -194,7 +194,7 @@ cp -r zig-0.15 zig-0.16 zig-memory ~/.claude/skills/
 
 先判断 Zig 版本：
 - 0.15.x：参考 `skills/zig-0.15/SKILL.md`
-- 0.16-dev：参考 `skills/zig-0.16/SKILL.md`
+- 0.16.0：参考 `skills/zig-0.16/SKILL.md`
 
 涉及内存管理（Allocator/defer/errdefer）时再补充：
 - `skills/zig-memory/SKILL.md`
@@ -286,7 +286,7 @@ skills/<skill-name>/
 ## 使用建议（按场景）
 
 - `zig-0.15`：适合新建或现有的 0.15.x 项目，用于校正旧 API 的差异。
-- `zig-0.16`：适合 0.16-dev 迁移窗口，处理 `std.Io`、`std.net` 等 API 重构。
+- `zig-0.16`：适合 Zig 0.16.0 项目或从 0.15.x 迁移，处理 `std.Io`、`@Type` 移除、`@cImport` 弃用等 API 重构。
 - `zig-memory`：涉及 `Allocator`、`defer` / `errdefer`、资源释放与泄漏排查时的通用复核技能。
 
 ## 快速命令清单（复制即用）
