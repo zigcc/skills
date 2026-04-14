@@ -14,10 +14,24 @@ metadata:
 # Zig 0.16.0 Programming Guide
 
 > **Version Scope**: This skill is pinned to **Zig 0.16.0** (stable).
-> **Official Docs**: https://ziglang.org/documentation/0.16.0/
-> **Release Notes**: https://ziglang.org/download/0.16.0/release-notes.html
+> **Local Installation**: `~/.local/zig-0.16.0/`
+> **Local Language Reference**: `~/.local/zig-0.16.0/doc/langref.html`
+> **Local Standard Library Docs**: Run `zig std` to start an offline server
+> **Release Notes (online)**: https://ziglang.org/download/0.16.0/release-notes.html
 
 Zig 0.16.0 is a major release introducing `std.Io` as the unified I/O interface, removing `@Type`, deprecating `@cImport`, and significantly reworking the build system package management.
+
+---
+
+## Local Documentation First
+
+Since Zig 0.16.0 is installed locally at `~/.local/zig-0.16.0/`, always prefer local docs over web search:
+
+1. **Language Reference** (offline): open `~/.local/zig-0.16.0/doc/langref.html` in a browser, or read it directly.
+2. **Standard Library Docs** (offline): run `zig std` to start a local HTTP server. It prints the URL (e.g. `http://127.0.0.1:12345/`). Use `-p 8080` to fix a port.
+3. **Release Notes** (online only): https://ziglang.org/download/0.16.0/release-notes.html
+
+When verifying an API mentioned in this skill, check the local std docs first. Do not assume older online docs match the exact local build.
 
 ---
 
