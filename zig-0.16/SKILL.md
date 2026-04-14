@@ -588,6 +588,162 @@ var full = std.EnumSet(MyEnum).full;
 
 ---
 
+## Common Idioms in Zig 0.16.0
+
+### ArrayList
+
+```zig
+const std = @import("std");
+
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+
+    var list = try std.ArrayList(u8).initCapacity(gpa, 16);
+    defer list.deinit(gpa);
+
+    try list.append(gpa, 'a');
+    try list.appendSlice(gpa, "hello");
+    try list.ensureTotalCapacity(gpa, 100);
+
+    const owned = try list.toOwnedSlice(gpa);
+    defer gpa.free(owned);
+}
+```
+
+### HashMap (Default / Unmanaged Style)
+
+```zig
+var map = std.StringHashMap(u32).empty;
+defer map.deinit(gpa);
+
+try map.put(gpa, "key", 42);
+const val = map.get("key") orelse 0;
+```
+
+### stdout / stderr with Juicy Main
+
+```zig
+pub fn main(init: std.process.Init) !void {
+    const io = init.io;
+
+    // Direct streaming write
+    try std.Io.File.stdout().writeStreamingAll(io, "Hello, world!\n");
+
+    // Or via writer interface
+    var stdout_writer = std.Io.File.stdout().writer(&.{});
+    try stdout_writer.interface.print("value: {d}\n", .{42});
+}
+```
+
+### Fixed-Buffer Reader / Writer
+
+```zig
+// Reader from byte slice
+var data = "line1\nline2\n";
+var reader: std.Io.Reader = .fixed(data);
+
+// Writer into a stack buffer
+var buf: [256]u8 = undefined;
+var writer: std.Io.Writer = .fixed(&buf);
+try writer.interface.print("count: {d}", .{7});
+```
+
+### File I/O
+
+```zig
+// Read entire file
+const contents = try std.Io.Dir.cwd().readFileAlloc(io, "input.txt", gpa, .limited(1024 * 1024));
+defer gpa.free(contents);
+
+// Write file atomically
+var atomic = try std.Io.File.Atomic.init(io, gpa, "output.txt");
+try atomic.file_writer.interface.print("data: {s}\n", .{"hello"});
+try atomic.commit(io);
+```
+
+### JSON
+
+```zig
+const MyStruct = struct {
+    name: []const u8,
+    value: u32,
+};
+
+// Parsing
+const json_str =
+    \\{"name": "test", "value": 42}
+;
+const parsed = try std.json.parseFromSlice(MyStruct, gpa, json_str, .{});
+defer parsed.deinit();
+
+// Serialization to string (via Io.Writer.Allocating)
+var out: std.Io.Writer.Allocating = .init(gpa);
+defer out.deinit();
+var stringify: std.json.Stringify = .{
+    .writer = &out.writer,
+    .options = .{},
+};
+try stringify.write(parsed.value);
+const json_output = out.written();
+```
+
+### Type Reflection (Comptime)
+
+```zig
+const info = @typeInfo(T);
+if (info == .pointer) { ... }
+if (info == .slice) { ... }
+if (info == .@"struct") { ... }
+if (info == .@"enum") { ... }
+if (info == .@"union") { ... }
+if (info == .optional) { ... }
+```
+
+### Testing
+
+```zig
+test "basic arithmetic" {
+    const std = @import("std");
+    try std.testing.expectEqual(4, 2 + 2);
+    try std.testing.expectError(error.OutOfMemory, mightFail());
+}
+
+test "no leaks" {
+    const std = @import("std");
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer std.testing.expect(gpa.deinit() == .ok) catch @panic("leak");
+    const allocator = gpa.allocator();
+
+    const ptr = try allocator.create(u32);
+    defer allocator.destroy(ptr);
+}
+```
+
+### Leb128 (Binary Format)
+
+```zig
+// OLD: std.leb.readUleb128(reader)
+// NEW:
+const value = try reader.takeLeb128(u64);
+```
+
+---
+
+## Common Error Messages and Fixes (0.16)
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `no field named 'getStdOut'` | Using old `std.io.getStdOut()` | Use `std.Io.File.stdout()` |
+| `expected 2 argument(s), found 1` | `ArrayList` method missing allocator | Add allocator as first argument |
+| `no member named 'Pool' in 'Thread'` | `std.Thread.Pool` removed | Use `std.Io.Group` + `Io.async` |
+| `expected type '*const process.Environ.Map'` | Function needs env map param | Pass it from `main(init)` |
+| `no member named 'fixedBufferStream'` | Old stream API removed | Use `std.Io.Reader.fixed(...)` or `std.Io.Writer.fixed(...)` |
+| `no field named 'getCwd' in 'process'` | Renamed | Use `std.process.currentPath*` |
+| `fingerprint field missing` | Old `build.zig.zon` | Add `.fingerprint = 0x...` and change `.name = "x"` to `.name = .x` |
+| `type depends on itself for alignment` | Self-referential alignment query | Remove `@alignOf(@This())` or restructure |
+
+---
+
 ## Build System Changes
 
 ### Fingerprint Required in build.zig.zon
