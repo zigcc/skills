@@ -240,6 +240,354 @@ error.EnvironmentVariableNotFound -> error.EnvironmentVariableMissing
 
 ---
 
+## New Execution Model: Juicy Main
+
+Zig 0.16.0 introduces `std.process.Init` as the preferred `main` parameter. This is the biggest entrypoint change in this release.
+
+### `main` signatures
+
+```zig
+// 1. Bare (no args/env available)
+pub fn main() !void { }
+
+// 2. Minimal (raw argv + environ only)
+pub fn main(init: std.process.Init.Minimal) !void { }
+
+// 3. Juicy Main (recommended)
+pub fn main(init: std.process.Init) !void { }
+```
+
+### `std.process.Init` contents
+
+```zig
+pub const Init = struct {
+    minimal: Minimal,
+    arena: *std.heap.ArenaAllocator,  // process-lifetime arena, threadsafe
+    gpa: Allocator,                     // general-purpose allocator
+    io: Io,                             // default Io implementation
+    environ_map: *Environ.Map,          // env vars (not threadsafe)
+    preopens: Preopens,                 // WASI-style preopened files
+
+    pub const Minimal = struct {
+        environ: Environ,
+        args: Args,
+    };
+};
+```
+
+### Example
+
+```zig
+const std = @import("std");
+
+pub fn main(init: std.process.Init) !void {
+    const gpa = init.gpa;
+    const io = init.io;
+
+    try std.Io.File.stdout().writeStreamingAll(io, "Hello, world!\n");
+
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    for (args, 0..) |arg, i| {
+        std.log.info("arg[{d}] = {s}", .{ i, arg });
+    }
+
+    std.log.info("{d} env vars", .{init.environ_map.count()});
+}
+```
+
+**Rule of thumb**: if your program needs I/O, allocations, or environment variables, use `std.process.Init`.
+
+---
+
+## Environment Variables & Process Args Are Non-Global
+
+`std.os.environ` and `std.process.args` as global state are gone. They are now only available through `main`'s `init` parameter.
+
+### Environment variables
+
+```zig
+// Juicy Main
+for (init.environ_map.keys(), init.environ_map.values()) |key, value| {
+    std.log.info("env: {s}={s}", .{ key, value });
+}
+
+// Minimal main
+std.log.info("HOME: {?s}", .{init.environ.getPosix("HOME")});
+std.log.info("EDITOR: {s}", .{ try init.environ.getAlloc(arena, "EDITOR") });
+const map = try init.environ.createMap(arena);
+```
+
+### CLI arguments
+
+```zig
+// Iterate lazily
+var args = init.args.iterate();
+while (args.next()) |arg| {
+    std.log.info("arg: {s}", .{arg});
+}
+
+// To slice (needs allocator)
+const args = try init.args.toSlice(arena);
+```
+
+Any function that needs environment variables should accept `*const process.Environ.Map` or `process.Environ` as a parameter.
+
+---
+
+## Thread.Pool Removed → Use std.Io
+
+`std.Thread.Pool` is removed. Replace with `std.Io.Group`, `std.Io.async`, or `std.Io.concurrent`.
+
+### Migration example
+
+```zig
+// OLD (0.15)
+fn doAllTheWork(pool: *std.Thread.Pool) void {
+    var wg: std.Thread.WaitGroup = .{};
+    pool.spawnWg(wg, doSomeWork, .{ pool, &wg, first_work_item });
+    wg.wait();
+}
+
+// NEW (0.16)
+fn doAllTheWork(io: std.Io) void {
+    var g: std.Io.Group = .init;
+    errdefer g.cancel(io);
+    g.async(io, doSomeWork, .{ io, &g, first_work_item });
+    g.wait(io);
+}
+
+fn doSomeWork(io: std.Io, g: *std.Io.Group, foo: Foo) void {
+    foo.doTheThing();
+    for (foo.new_work_items) |new| {
+        g.async(io, doSomeWork, .{ io, g, new });
+    }
+}
+```
+
+**Important**: when migrating from `Thread.Pool` to `Io`, convert `Thread.Mutex`, `Thread.Condition`, `Thread.ResetEvent` to `Io.Mutex`, `Io.Condition`, `Io.Event`.
+
+---
+
+## File I/O & fs API Changes
+
+### readFileAlloc / readToEndAlloc
+
+```zig
+// OLD
+const contents = try std.fs.cwd().readFileAlloc(allocator, file_name, 1234);
+
+// NEW
+const contents = try std.Io.Dir.cwd().readFileAlloc(io, file_name, allocator, .limited(1234));
+// Note: FileTooBig -> StreamTooLong when limit reached.
+```
+
+```zig
+// OLD
+const contents = try file.readToEndAlloc(allocator, 1234);
+
+// NEW
+var file_reader = file.reader(&.{});
+const contents = try file_reader.interface.allocRemaining(allocator, .limited(1234));
+```
+
+### setTimestamps
+
+```zig
+// OLD
+try atomic_file.file_writer.file.setTimestamps(io, src_stat.atime, src_stat.mtime);
+
+// NEW
+try atomic_file.file_writer.file.setTimestamps(io, .{
+    .access_timestamp = .init(src_stat.atime),
+    .modify_timestamp = .init(src_stat.mtime),
+});
+```
+
+`Io.File.Stat.atime` is now `?Timestamp` (can be `null` on e.g. ZFS).
+
+### Directory walking
+
+- `std.Io.Dir.walk` still exists.
+- New: `std.Io.Dir.walkSelectively` — opt-in recursion per directory, avoiding redundant open/close syscalls.
+- Both `Walker` and `SelectiveWalker` gained `leave()` and `depth()`.
+
+### fs.path.relative is now pure
+
+```zig
+// OLD
+const relative = try std.fs.path.relative(gpa, from, to);
+
+// NEW
+const cwd_path = try std.process.currentPathAlloc(io, gpa);
+const relative = try std.fs.path.relative(gpa, cwd_path, environ_map, from, to);
+```
+
+### fs.path Windows changes
+
+- `windowsParsePath`/`diskDesignator`/`diskDesignatorWindows` → `parsePath`, `parsePathWindows`, `parsePathPosix`
+- Added `getWin32PathType`
+- `componentIterator`/`ComponentIterator.init` can no longer fail
+
+### Current Directory API renamed
+
+```zig
+// OLD
+std.process.getCwd(buffer)
+std.process.getCwdAlloc(allocator)
+
+// NEW
+std.process.currentPath(io, buffer)
+std.process.currentPathAlloc(io, allocator)
+```
+
+---
+
+## Preopens & Atomic / Temporary Files
+
+### Preopens
+
+```zig
+// OLD (WASI)
+const wasi_preopens: std.fs.wasi.Preopens = try .preopensAlloc(arena);
+
+// NEW
+const preopens: std.process.Preopens = try .init(arena);
+// Or simply use init.preopens from Juicy Main.
+```
+
+`Preopens` is `void` on non-WASI targets — zero-cost abstraction.
+
+### Atomic / Temporary Files
+
+`std.Io.File.Atomic` is the new API for atomic file writes and temporary files.
+
+- Linux: integrates with `O_TMPFILE` when possible.
+- New: `std.Io.File.hardLink`
+- Temporary/random filenames are generated via the Io vtable instead of `std.crypto.random`.
+
+---
+
+## Memory & Allocator Changes
+
+### ArenaAllocator is now lock-free and thread-safe
+
+`std.heap.ArenaAllocator` no longer needs `ThreadSafeAllocator` wrapping. Performance is comparable single-threaded and faster under contention (~7 threads).
+
+### ThreadSafe Allocator removed
+
+`std.heap.ThreadSafe` is removed; use `ArenaAllocator` directly, or synchronize access manually.
+
+### Memory Locking / Protection moved to `std.process`
+
+```zig
+// OLD
+try std.posix.mlock();
+try std.posix.mlock2(slice, std.posix.MLOCK_ONFAULT);
+try std.posix.mlockall(slice, std.posix.MCL_CURRENT | std.posix.MCL_FUTURE);
+
+// NEW
+try std.process.lockMemory(slice, .{});
+try std.process.lockMemory(slice, .{ .on_fault = true });
+try std.process.lockMemoryAll(.{ .current = true, .future = true });
+```
+
+mmap/mprotect flags are now type-safe structs instead of bitwise OR:
+
+```zig
+// OLD
+std.posix.PROT.READ | std.posix.PROT.WRITE
+
+// NEW
+.{ .READ = true, .WRITE = true }
+```
+
+### MemoryPool
+
+- `std.heap.MemoryPool(T).initCapacity(allocator, n)` returns the pool.
+- `create`/`destroy` now require allocator parameter.
+- New unmanaged variants: `MemoryPoolUnmanaged`, `MemoryPoolAlignedUnmanaged`, `MemoryPoolExtraUnmanaged`.
+
+### Io.Writer.Allocating alignment field
+
+```zig
+alignment: std.mem.Alignment,  // new field
+```
+
+---
+
+## Container & Collection Changes
+
+### Migration to "Unmanaged"
+
+Managed variants with embedded `Allocator` fields are being phased out.
+
+- `ArrayHashMap`, `AutoArrayHashMap`, `StringArrayHashMap` **removed**.
+- `AutoArrayHashMapUnmanaged` → `array_hash_map.Auto`
+- `StringArrayHashMapUnmanaged` → `array_hash_map.String`
+- `ArrayHashMapUnmanaged` → `array_hash_map.Custom`
+
+### PriorityQueue
+
+```zig
+var queue = std.PriorityQueue(u32, void, lessThan).empty;
+```
+
+- `init` → `initContext`
+- `add` → `push`
+- `addSlice` → `pushSlice`
+- `remove` / `removeOrNull` → `pop`
+- `removeIndex` → `popIndex`
+
+### PriorityDequeue
+
+```zig
+var dq = std.PriorityDequeue(u32, void, lessThan).empty;
+```
+
+- `init` → `.empty`
+- `add` → `push`
+- `removeMinOrNull` / `removeMin` → `popMin`
+- `removeMaxOrNull` / `removeMax` → `popMax`
+- `removeIndex` → `popIndex`
+
+### BitSet / EnumSet
+
+Use decl literals instead of `initEmpty` / `initFull`:
+
+```zig
+var set = std.EnumSet(MyEnum).empty;
+var full = std.EnumSet(MyEnum).full;
+```
+
+### SegmentedList
+
+- `std.SegmentedList` removed.
+
+---
+
+## Removed APIs (Quick List)
+
+| Removed API | Replacement |
+|-------------|-------------|
+| `std.Thread.Pool` | `std.Io.Group`, `Io.async`, `Io.concurrent` |
+| `std.heap.ThreadSafe` | `std.heap.ArenaAllocator` (now thread-safe) |
+| `std.io.fixedBufferStream` | `std.Io.Reader.fixed(data)` / `std.Io.Writer.fixed(buf)` |
+| `std.Io.GenericReader` | `std.Io.Reader` |
+| `std.Io.AnyReader` | `std.Io.Reader` |
+| `std.Io.GenericWriter` | `std.Io.Writer` |
+| `std.Io.AnyWriter` | `std.Io.Writer` |
+| `std.Io.null_writer` | Use `std.Io.Writer` directly |
+| `std.Io.CountingReader` | No direct replacement; track bytes manually |
+| `std.SegmentedList` | None |
+| `std.meta.declList` | None |
+| `std.fs.getAppDataDir` | None |
+| `std.posix.getCwd*` | `std.process.currentPath*` |
+| `std.posix.mlock*` | `std.process.lockMemory*` |
+| `std.posix.PROT_*` bitwise flags | Struct literal flags |
+| `std.ArrayHashMap` | `array_hash_map.Auto` / `.String` / `.Custom` |
+
+---
+
 ## Build System Changes
 
 ### Fingerprint Required in build.zig.zon
