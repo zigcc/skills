@@ -14,47 +14,21 @@ metadata:
 # Zig 0.16.0 Programming Guide
 
 > **Version Scope**: This skill is pinned to **Zig 0.16.0** (stable).
-> **Path Discovery**: Run `zig env` to get installation paths (see below).
-> **Local Standard Library Docs**: Run `zig std` to start an offline server.
-> **Release Notes (online)**: https://ziglang.org/download/0.16.0/release-notes.html
+> **Release Notes**: https://ziglang.org/download/0.16.0/release-notes.html
 
 Zig 0.16.0 is a major release introducing `std.Io` as the unified I/O interface, removing `@Type`, deprecating `@cImport`, and significantly reworking the build system package management.
 
 ---
 
-## Path Discovery via `zig env`
-
-Use `zig env` to discover the active Zig installation paths. Do **not** hardcode installation directories. The command outputs a Zig struct literal with all relevant paths:
-
-```bash
-$ zig env
-.{
-    .zig_exe = "/path/to/zig",
-    .lib_dir = "/path/to/lib",
-    .std_dir = "/path/to/lib/std",
-    .global_cache_dir = "/home/user/.cache/zig",
-    .version = "0.16.0",
-    .target = "aarch64-macos...-none",
-    .env = .{ ... },
-}
-```
-
-Key fields:
-- **`.zig_exe`** — full path to the `zig` binary.
-- **`.lib_dir`** — root library directory; language reference lives at `<lib_dir>/../doc/langref.html`.
-- **`.std_dir`** — standard library source directory; read source files directly for API verification.
-- **`.version`** — confirm the active version is `0.16.0`.
-
 ## Local Documentation First
 
-Always prefer local docs over web search:
+Run `zig env` to discover installation paths — never hardcode them. Key fields: `.lib_dir`, `.std_dir`, `.version`.
 
-1. **Language Reference** (offline): Derive the path from `zig env`: `<lib_dir>/../doc/langref.html`.
-2. **Standard Library Source** (offline): Read files under the `.std_dir` path from `zig env`.
-3. **Standard Library Docs** (offline): Run `zig std` to start a local HTTP server. It prints the URL (e.g. `http://127.0.0.1:12345/`). Use `-p 8080` to fix a port.
-4. **Release Notes** (online only): https://ziglang.org/download/0.16.0/release-notes.html
+- **Language Reference**: `<lib_dir>/../doc/langref.html`
+- **Std Library Source**: read files under `.std_dir` for API verification.
+- **Std Library Docs**: run `zig std` to start a local HTTP server.
 
-When verifying an API mentioned in this skill, check the local std source or docs first. Do not assume older online docs match the exact local build.
+Always check local docs before web search.
 
 ---
 
