@@ -172,7 +172,7 @@ to corrupt state is to crash. Assertions downgrade catastrophic correctness bugs
 - **Callbacks go last** in the parameter list (mirrors invocation order).
 - Infuse names with meaning: `gpa: Allocator` and `arena: Allocator` are far more informative
   than `allocator: Allocator`.
-- Functions that take two `u64` arguments must use a named `options: struct` parameter to prevent argument confusion.
+- Functions that take two or more arguments of the same type must use a named `options: struct` parameter to prevent argument confusion.
 
 ### Struct and File Layout
 
