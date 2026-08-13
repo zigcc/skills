@@ -36,14 +36,18 @@ Always check local docs before web search.
 
 | Old (0.15.x) | New (0.16.0) |
 |--------------|--------------|
-| `@Type(.Int(...))` | `@Int(.signed, bits)` |
-| `@Type(.Struct(...))` | `@Struct(layout, BackingInt, field_names, field_types, field_defaults, field_is_comptime, field_alignments)` |
-| `@Type(.Pointer(...))` | `@Pointer(size, attrs, Element, sentinel)` |
-| `@Type(.Fn(...))` | `@Fn(param_types, param_attrs, ReturnType, attrs)` |
-| `@Type(.Tuple(...))` | `@Tuple(field_types)` |
+| `@Type(.{ .int = ... })` | `@Int(signedness, bits)` |
+| `@Type(.{ .@"struct" = ... })` | `@Struct(layout, BackingInt, field_names, field_types, field_attrs)` |
+| `@Type(.{ .@"union" = ... })` | `@Union(layout, ArgType, field_names, field_types, field_attrs)` |
+| `@Type(.{ .@"enum" = ... })` | `@Enum(TagType, exhaustivity, field_names, field_values)` |
+| `@Type(.{ .pointer = ... })` | `@Pointer(size, attrs, Element, sentinel)` |
+| `@Type(.{ .@"fn" = ... })` | `@Fn(param_types, param_attrs, ReturnType, attrs)` |
+| `@Type(.{ .@"struct" = ... })` (tuple) | `@Tuple(field_types)` |
+| `@Type(.enum_literal)` | `@EnumLiteral()` |
 | `@cImport({...})` | `b.addTranslateC(...)` + `@import("c")` (deprecated) |
 | `std.net` | `std.Io.net` |
-| `std.ArrayList.init(allocator)` | `std.ArrayList.initCapacity(allocator, n)` |
+| `std.ArrayList.init(allocator)` | `var l: std.ArrayList(T) = .empty;` + allocator per method |
+| `std.heap.GeneralPurposeAllocator` | `std.heap.DebugAllocator(.{})` |
 | `std.crypto.random` | `std.Io.randomSecure(io, buf)` |
 | `std.meta.intToEnum` | `std.enums.fromInt` |
 | `std.fmt.FormatOptions` | `std.fmt.Options` |
@@ -61,33 +65,42 @@ Always check local docs before web search.
 
 ### @Type Removed — Use Individual Builtins
 
-`@Type` is gone. Replace with these builtins:
+`@Type` is gone, replaced by **8** individual builtins. Containers use a
+"struct of arrays" strategy: field names, field types and field *attributes* are
+passed as three separate slices, so `&@splat(.{})` is the idiom for "default
+attributes on every field".
 
 ```zig
 // Integer type
 const MyInt = @Int(.signed, 32);
 
-// Struct type
+// Struct type — 5 arguments. Alignment, comptime-ness and default value
+// all live inside `std.builtin.Type.StructField.Attributes`.
 const MyStruct = @Struct(
-    .auto,           // layout
-    null,            // BackingInt (for packed)
-    &.{"x", "y"},    // field_names
-    &.{ i32, i32 },  // field_types
-    &.{ null, null },// field_defaults
-    &.{ false, false }, // field_is_comptime
-    &.{ null, null },// field_alignments
+    .auto,                   // layout
+    null,                    // BackingInt (only for packed)
+    &.{ "x", "y" },          // field_names
+    &.{ i32, i32 },          // field_types
+    &.{                      // field_attrs
+        .{},
+        .{ .default_value_ptr = &@as(i32, 7) },
+    },
 );
 
-// Pointer type
-const MyPtr = @Pointer(.one, .{
-    .alignment = 8,
-    .address_space = .generic,
-    .is_const = false,
-    .is_volatile = false,
-}, u8, null);
+// Enum type — takes field *values*, not types.
+const MyTag = @Enum(u32, .exhaustive, &.{ "foo", "bar" }, &.{ 0, 1 });
+
+// Union type — same shape as @Struct; 2nd arg is the tag type (or backing
+// integer for `packed`).
+const MyUnion = @Union(.auto, MyTag, &.{ "foo", "bar" }, &.{ i64, f64 }, &@splat(.{}));
+
+// Pointer type — attribute field names mirror the pointer syntax keywords,
+// so they need @"" quoting: .@"const", .@"volatile", .@"allowzero",
+// .@"align", .@"addrspace". There is no `.alignment` / `.is_const`.
+const MyPtr = @Pointer(.one, .{ .@"const" = true, .@"align" = 8 }, u8, null);
 
 // Function type
-const MyFn = @Fn(&.{i32, i32}, &.{.{}, .{}}, i32, .{});
+const MyFn = @Fn(&.{ i32, i32 }, &@splat(.{}), i32, .{});
 
 // Tuple type
 const MyTuple = @Tuple(&.{ i32, bool });
@@ -95,6 +108,8 @@ const MyTuple = @Tuple(&.{ i32, bool });
 // Enum literal type
 const EnumLitType = @EnumLiteral();
 ```
+
+`@typeInfo` is unchanged — only the *construction* side moved.
 
 ### @cImport Deprecated — Use Build System Translation
 
@@ -168,7 +183,7 @@ Then in Zig: `const c = @import("c");`
 
 - `std.time.milliTimestamp` removed. Use `std.time.Timer` or `std.Io.Clock.now(clock, io)` and compare `Timestamp.nanoseconds`.
 - Random secure bytes: `std.Io.randomSecure(io, buf)`; no `std.crypto.random` or `std.posix.getrandom` convenience.
-- `std.process.getEnvVarOwned` removed; use `std.c.getenv` and copy.
+- `std.process.getEnvVarOwned` removed; environment access is non-global now — go through `init.environ_map` / `init.environ` from `main` (see below), not `std.c.getenv` (libc-only).
 - `std.posix.exit` removed; use `std.process.exit`.
 
 ### TLS Client Options
@@ -177,8 +192,7 @@ Then in Zig: `const c = @import("c");`
 
 ### MemoryPool API Changes
 
-- `std.heap.MemoryPool(T).initCapacity(allocator, n)` returns the pool.
-- `create`/`destroy` now require allocator. No bare `init()` or zero-arg `deinit()`.
+See [MemoryPool](#memorypool) under *Memory & Allocator Changes*.
 
 ### Format Options
 
@@ -189,7 +203,7 @@ Then in Zig: `const c = @import("c");`
 
 ### Randomness / Crypto
 
-- `std.crypto.random` removed. Use an `std.Io` instance: `const io = std.Io.Threaded.global_single_threaded.ioBasic(); io.random(&buf);`.
+- `std.crypto.random` removed. Use an `std.Io` instance: `const io = std.Io.Threaded.global_single_threaded.io(); io.random(&buf);` (the accessor is `io()`). For cryptographic material use `std.Io.randomSecure(io, &buf)` instead, which can fail with `error.EntropyUnavailable`.
 - `Ed25519.KeyPair.generate` now requires an `io: std.Io` argument.
 
 ### Enum Conversion
@@ -199,8 +213,9 @@ Then in Zig: `const c = @import("c");`
 
 ### Fixed-Buffer Writers in Tests
 
-- `std.io.fixedBufferStream` removed. For in-memory writes use `var w = std.Io.Writer.fixed(buf);` and read bytes with `std.Io.Writer.buffered(&w)`.
-- `std.ArrayList` no longer has `.init(allocator)` shorthand; use `.initCapacity(allocator, n)`.
+- `std.io.fixedBufferStream` removed. For in-memory writes use `var w: std.Io.Writer = .fixed(buf);` and read bytes back with `w.buffered()`.
+- `Writer.fixed` / `Reader.fixed` return the interface **itself**, so call `w.print(...)` directly. Wrappers embed it under different field names — `File.Writer`/`File.Reader` use `.interface`, `Io.Writer.Allocating` uses `.writer`. Check the type before reaching for `.interface`.
+- `std.ArrayList` no longer has `.init(allocator)` shorthand; construct with `.empty` (or `.initCapacity(allocator, n)`) and pass the allocator to each method.
 
 ### Collections
 
@@ -382,10 +397,14 @@ const contents = try std.Io.Dir.cwd().readFileAlloc(io, file_name, allocator, .l
 // OLD
 const contents = try file.readToEndAlloc(allocator, 1234);
 
-// NEW
-var file_reader = file.reader(&.{});
+// NEW — reader(io, buffer): both arguments are required
+var buf: [4096]u8 = undefined;
+var file_reader = file.reader(io, &buf);
 const contents = try file_reader.interface.allocRemaining(allocator, .limited(1234));
 ```
+
+`File.reader` / `File.writer` (and the `*Streaming` variants) all take
+`(file, io, buffer)` in 0.16 — the old buffer-only form is gone.
 
 ### setTimestamps
 
@@ -457,6 +476,10 @@ const preopens: std.process.Preopens = try .init(arena);
 ### Atomic / Temporary Files
 
 `std.Io.File.Atomic` is the new API for atomic file writes and temporary files.
+It is **created by `std.Io.Dir.createFileAtomic(io, sub_path, options)`** — there
+is no `Atomic.init`. Finish with `replace(io)` (overwrite destination) or
+`link(io)` (fail if it exists), matching the `.replace` option you passed; always
+`deinit(io)` afterwards. There is no `commit`.
 
 - Linux: integrates with `O_TMPFILE` when possible.
 - New: `std.Io.File.hardLink`
@@ -472,7 +495,28 @@ const preopens: std.process.Preopens = try .init(arena);
 
 ### ThreadSafe Allocator removed
 
-`std.heap.ThreadSafe` is removed; use `ArenaAllocator` directly, or synchronize access manually.
+`std.heap.ThreadSafeAllocator` is removed — wrapping an allocator in a mutex is
+considered an anti-pattern now that thread safety is built into the allocators
+themselves. Do **not** reach for `ArenaAllocator` as a blanket replacement: an
+arena never frees individual allocations. Pick by use case:
+
+| Need | Use |
+|------|-----|
+| Process/request-scoped bump allocation | `std.heap.ArenaAllocator` (lock-free, threadsafe) |
+| General purpose, ReleaseFast + threads | `std.heap.smp_allocator` (process-wide singleton) |
+| General purpose, leak/UAF detection | `std.heap.DebugAllocator(.{})` (`Config.thread_safe` defaults to `!single_threaded`) |
+| Inside `main` | `init.gpa` — already threadsafe, with leak checking in Debug |
+
+### GeneralPurposeAllocator renamed
+
+`std.heap.GeneralPurposeAllocator` no longer exists. It is `std.heap.DebugAllocator`,
+constructed with the `.init` decl literal:
+
+```zig
+var da: std.heap.DebugAllocator(.{}) = .init;
+defer std.debug.assert(da.deinit() == .ok);   // returns std.heap.Check
+const gpa = da.allocator();
+```
 
 ### Memory Locking / Protection moved to `std.process`
 
@@ -500,9 +544,27 @@ std.posix.PROT.READ | std.posix.PROT.WRITE
 
 ### MemoryPool
 
-- `std.heap.MemoryPool(T).initCapacity(allocator, n)` returns the pool.
-- `create`/`destroy` now require allocator parameter.
-- New unmanaged variants: `MemoryPoolUnmanaged`, `MemoryPoolAlignedUnmanaged`, `MemoryPoolExtraUnmanaged`.
+`std.heap.MemoryPool(T)` **is now the unmanaged pool** — the naming convention
+flipped, so there is no `MemoryPoolUnmanaged`. The managed variants moved to
+`std.heap.memory_pool.Managed` / `.ExtraManaged` and are marked deprecated.
+`std.heap.MemoryPoolAligned`, `MemoryPoolExtra` and `MemoryPoolOptions` are
+deprecated aliases too — prefer `std.heap.memory_pool.Aligned` / `.Extra` /
+`.Options`.
+
+```zig
+var pool: std.heap.MemoryPool(u32) = .empty;   // decl literal, no init()
+defer pool.deinit(gpa);                        // deinit takes the allocator
+
+try pool.addCapacity(gpa, 8);                  // optional pre-allocation
+const p = try pool.create(gpa);                // create DOES take the allocator
+pool.destroy(p);                               // destroy does NOT
+_ = pool.reset(gpa, .retain_capacity);
+```
+
+`initCapacity(allocator, n)` also exists as an alternative to `.empty` +
+`addCapacity`. Note the asymmetry: only the allocating operations
+(`initCapacity`, `addCapacity`, `create`, `deinit`, `reset`) take an
+`Allocator`; `destroy` just pushes onto the free list.
 
 ### Io.Writer.Allocating alignment field
 
@@ -567,7 +629,9 @@ var full = std.EnumSet(MyEnum).full;
 | Removed API | Replacement |
 |-------------|-------------|
 | `std.Thread.Pool` | `std.Io.Group`, `Io.async`, `Io.concurrent` |
-| `std.heap.ThreadSafe` | `std.heap.ArenaAllocator` (now thread-safe) |
+| `std.heap.ThreadSafeAllocator` | `std.heap.smp_allocator`, `DebugAllocator`, or `ArenaAllocator` (all threadsafe) |
+| `std.heap.GeneralPurposeAllocator` | `std.heap.DebugAllocator(.{})` |
+| `std.heap.MemoryPoolUnmanaged` (dev-only name, never shipped) | `std.heap.MemoryPool` (already unmanaged) |
 | `std.io.fixedBufferStream` | `std.Io.Reader.fixed(data)` / `std.Io.Writer.fixed(buf)` |
 | `std.Io.GenericReader` | `std.Io.Reader` |
 | `std.Io.AnyReader` | `std.Io.Reader` |
@@ -595,7 +659,7 @@ const std = @import("std");
 pub fn main(init: std.process.Init) !void {
     const gpa = init.gpa;
 
-    var list = try std.ArrayList(u8).initCapacity(gpa, 16);
+    var list: std.ArrayList(u8) = .empty;   // or: try .initCapacity(gpa, 16)
     defer list.deinit(gpa);
 
     try list.append(gpa, 'a');
@@ -607,10 +671,14 @@ pub fn main(init: std.process.Init) !void {
 }
 ```
 
-### HashMap (Default / Unmanaged Style)
+### HashMap (Unmanaged Style)
+
+Unlike the array hash maps, `std.StringHashMap` / `std.AutoHashMap` are **still
+the managed variants** in 0.16 — they keep an embedded allocator and have no
+`.empty`. For the allocator-per-call style use the `Unmanaged` names:
 
 ```zig
-var map = std.StringHashMap(u32).empty;
+var map: std.StringHashMapUnmanaged(u32) = .empty;
 defer map.deinit(gpa);
 
 try map.put(gpa, "key", 42);
@@ -626,9 +694,11 @@ pub fn main(init: std.process.Init) !void {
     // Direct streaming write
     try std.Io.File.stdout().writeStreamingAll(io, "Hello, world!\n");
 
-    // Or via writer interface
-    var stdout_writer = std.Io.File.stdout().writer(&.{});
+    // Or via writer interface — writer(io, buffer); flush before returning
+    var buf: [1024]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(io, &buf);
     try stdout_writer.interface.print("value: {d}\n", .{42});
+    try stdout_writer.interface.flush();
 }
 ```
 
@@ -636,13 +706,15 @@ pub fn main(init: std.process.Init) !void {
 
 ```zig
 // Reader from byte slice
-var data = "line1\nline2\n";
+const data = "line1\nline2\n";
 var reader: std.Io.Reader = .fixed(data);
+const line = try reader.takeDelimiterExclusive('\n');
 
-// Writer into a stack buffer
+// Writer into a stack buffer — `.fixed` IS the Writer, no `.interface` hop
 var buf: [256]u8 = undefined;
 var writer: std.Io.Writer = .fixed(&buf);
-try writer.interface.print("count: {d}", .{7});
+try writer.print("count: {d}", .{7});
+const written = writer.buffered();   // "count: 7"
 ```
 
 ### File I/O
@@ -652,10 +724,16 @@ try writer.interface.print("count: {d}", .{7});
 const contents = try std.Io.Dir.cwd().readFileAlloc(io, "input.txt", gpa, .limited(1024 * 1024));
 defer gpa.free(contents);
 
-// Write file atomically
-var atomic = try std.Io.File.Atomic.init(io, gpa, "output.txt");
-try atomic.file_writer.interface.print("data: {s}\n", .{"hello"});
-try atomic.commit(io);
+// Write file atomically: Dir.createFileAtomic -> write -> replace/link -> deinit
+var af = try std.Io.Dir.cwd().createFileAtomic(io, "output.txt", .{ .replace = true });
+defer af.deinit(io);   // always, even after a successful finish
+
+var buf: [4096]u8 = undefined;
+var aw = af.file.writer(io, &buf);
+try aw.interface.print("data: {s}\n", .{"hello"});
+try aw.interface.flush();
+
+try af.replace(io);    // or af.link(io) to fail if the destination exists
 ```
 
 ### JSON
@@ -707,12 +785,20 @@ test "basic arithmetic" {
 
 test "no leaks" {
     const std = @import("std");
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer std.testing.expect(gpa.deinit() == .ok) catch @panic("leak");
-    const allocator = gpa.allocator();
+    // std.testing.allocator is already a leak-checking DebugAllocator.
+    const gpa = std.testing.allocator;
+    const ptr = try gpa.create(u32);
+    defer gpa.destroy(ptr);
+}
 
-    const ptr = try allocator.create(u32);
-    defer allocator.destroy(ptr);
+test "explicit leak checking" {
+    const std = @import("std");
+    var da: std.heap.DebugAllocator(.{}) = .init;
+    defer std.testing.expect(da.deinit() == .ok) catch @panic("leak");
+    const gpa = da.allocator();
+
+    const ptr = try gpa.create(u32);
+    defer gpa.destroy(ptr);
 }
 ```
 
@@ -833,7 +919,7 @@ Notable additions:
 3. **Add `fingerprint` and fix `name`** in `build.zig.zon`.
 4. **Thread `std.Io` through your app** — any function doing I/O, sleep, random, or time needs an `io` parameter.
 5. **Update `std.net` usages** to `std.Io.net` or raw syscalls.
-6. **Update `ArrayList` calls** to pass allocator explicitly and use `initCapacity`.
+6. **Update `ArrayList` calls** to construct with `.empty` and pass the allocator to every method.
 7. **Fix error set names** (CrossDevice, FileBusy, EnvironmentVariableMissing, DirNotEmpty).
 8. **Run `zig build test --test-timeout 500ms`** to catch hanging tests early.
 
