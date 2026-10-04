@@ -8,107 +8,61 @@ Version-specific Zig skills for AI tools. These skills help assistants generate 
 | --- | --- | --- |
 | [zig-0.15](./zig-0.15/) | Zig 0.15 API guidance | Zig 0.15.x |
 | [zig-0.16](./zig-0.16/) | Zig 0.16 API guidance and migration notes | Zig 0.16.0 |
-
-## When to Use Which Skill
-
-- Use `zig-0.15` for Zig 0.15.x projects.
-- Use `zig-0.16` for Zig 0.16.0 projects or 0.15 -> 0.16 migration work.
+| [zig-0.17](./zig-0.17/) | Zig 0.17 API guidance and migration notes | Zig 0.17.0 |
+| [zig-tiger-style](./zig-tiger-style/) | TigerStyle Zig coding guidelines and best practices | All Zig versions |
 
 ## Install
 
-### OpenCode / project local
+### 1. Via `npx skills`
 
 ```bash
-mkdir -p .opencode/skill
-cp -r zig-0.15 .opencode/skill/zig-0.15
-cp -r zig-0.16 .opencode/skill/zig-0.16
+# Interactive selection (choose which skills and agents to install)
+npx skills add zigcc/skills
+
+# Or install a specific version directly
+npx skills add zigcc/skills --skill zig-0.17
 ```
 
-### OpenCode / global
+### 2. Manual Copy
+
+Copy the target skill directory to your AI tool's skill directory:
 
 ```bash
-mkdir -p ~/.config/opencode/skill
-cp -r zig-0.15 ~/.config/opencode/skill/zig-0.15
-cp -r zig-0.16 ~/.config/opencode/skill/zig-0.16
-```
+# OpenCode (project local)
+mkdir -p .opencode/skill && cp -r zig-0.17 .opencode/skill/
 
-### Claude Code compatible
+# OpenCode (global)
+mkdir -p ~/.config/opencode/skill && cp -r zig-0.17 ~/.config/opencode/skill/
 
-```bash
-mkdir -p .claude/skills
-cp -r zig-0.15 .claude/skills/zig-0.15
-cp -r zig-0.16 .claude/skills/zig-0.16
-```
-
-### Git submodule
-
-```bash
-git submodule add https://github.com/zigcc/skills.git skills
-git submodule update --remote
+# Claude Code
+mkdir -p .claude/skills && cp -r zig-0.17 .claude/skills/
 ```
 
 ## Usage
 
-### Claude Code
+### In Project Rules (Recommended)
 
-Add the relevant skill to `CLAUDE.md`:
+Pin your project to a specific Zig version in `CLAUDE.md` or `AGENTS.md` so the AI assistant always follows the correct APIs:
 
 ```markdown
-# Zig
+# Zig Guidelines
 
-- For Zig 0.15.x, read `skills/zig-0.15/SKILL.md`
-- For Zig 0.16.0, read `skills/zig-0.16/SKILL.md`
+- For Zig 0.17.x, follow `.claude/skills/zig-0.17/SKILL.md` (or `.opencode/skill/zig-0.17/SKILL.md`)
+- For Zig 0.16.0, follow `.claude/skills/zig-0.16/SKILL.md` (or `.opencode/skill/zig-0.16/SKILL.md`)
+- For Zig 0.15.x, follow `.claude/skills/zig-0.15/SKILL.md` (or `.opencode/skill/zig-0.15/SKILL.md`)
 ```
 
-Or load a skill directly in a conversation:
+### Direct Invocation
 
-```text
-@file .opencode/skill/zig-0.16/SKILL.md
-Help me migrate a Zig 0.15 project to 0.16 with minimal changes.
-```
-
-### OpenCode
-
-If your setup supports named skills:
-
-```json
-{
-  "permission": {
-    "skill": {
-      "zig-0.15": "ask",
-      "zig-0.16": "ask"
-    }
-  }
-}
-```
-
-Then load the version you need:
-
-```text
-/skill zig-0.15
-```
-
-### Codex
-
-You can point Codex at this repository and ask it to install the skills:
-
-```text
-read https://github.com/zigcc/skills
-@install-skills
-```
-
-## Repository Layout
-
-```text
-zig-skills/
-|- zig-0.15/
-|  `- SKILL.md
-`- zig-0.16/
-   `- SKILL.md
-```
-
-## Notes
-
-- Each skill is intentionally version-specific.
-- Always match the skill to the Zig version used by the project.
-- For detailed guidance, open the `SKILL.md` inside the target skill directory.
+- **OpenCode**: Use the slash command:
+  ```text
+  /skill zig-0.17
+  ```
+- **Claude Code**: The skill is detected automatically, or mention it in your prompt:
+  ```text
+  Please use the zig-0.17 skill to review this code.
+  ```
+- **Prompt reference** (any tool supporting file context):
+  ```text
+  @file .claude/skills/zig-0.17/SKILL.md
+  ```
