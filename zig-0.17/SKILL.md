@@ -419,7 +419,27 @@ run_cmd.addPassthruArgs();
 ```
 Changing CLI arguments via `zig build run -- arg1 arg2` will no longer invalidate the configure cache!
 
-### 4. Build Root & Path Options
+### 4. System Libraries and pkg-config
+
+`Module.linkSystemLibrary` uses pkg-config by default in Zig 0.17:
+
+```zig
+module.linkSystemLibrary("foo", .{});
+```
+
+For platform-provided libraries that do not ship `.pc` files, such as Windows
+`bcrypt` and `ws2_32`, disable pkg-config explicitly:
+
+```zig
+module.linkSystemLibrary("bcrypt", .{
+    .use_pkg_config = .no,
+});
+```
+
+This still links the library by name; it only prevents Zig from invoking
+`pkg-config`.
+
+### 5. Build Root & Path Options
 
 - `b.build_root` (Directory) $\rightarrow$ `b.root` (Cache.Path).
 - `Step.Options`: Distinguish files from directories:
