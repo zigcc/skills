@@ -46,7 +46,7 @@ Always check local docs before web search.
 | `@Type(.enum_literal)` | `@EnumLiteral()` |
 | `@cImport({...})` | `b.addTranslateC(...)` + `@import("c")` (deprecated) |
 | `std.net` | `std.Io.net` |
-| `std.ArrayList.init(allocator)` | `var l: std.ArrayList(T) = .empty;` + allocator per method |
+| `std.ArrayList.init(allocator)` | `var l: std.ArrayList(T) = .empty;` + allocator for allocation/deallocation methods |
 | `std.heap.GeneralPurposeAllocator` | `std.heap.DebugAllocator(.{})` |
 | `std.crypto.random` | `std.Io.randomSecure(io, buf)` |
 | `std.meta.intToEnum` | `std.enums.fromInt` |
