@@ -33,7 +33,7 @@ This skill provides **verified, source-checked** API documentation for Zig 0.15.
 ## Contents
 
 ```
-skills/zig-0.15/
+skills/zig-0-15/
 ├── SKILL.md                              # Main skill file with API guidance
 ├── VERSIONING.md                         # Version compatibility notes
 ├── README.md                             # This file
@@ -63,10 +63,10 @@ OpenCode searches for skills in these locations:
 ```bash
 # Copy skill to project's .opencode/skill directory
 mkdir -p .opencode/skill
-cp -r zig-0.15 .opencode/skill/
+cp -r zig-0-15 .opencode/skill/
 
 # The skill name must match the directory name
-# Result: .opencode/skill/zig-0.15/SKILL.md
+# Result: .opencode/skill/zig-0-15/SKILL.md
 ```
 
 **Method 2: Global Installation**
@@ -74,7 +74,7 @@ cp -r zig-0.15 .opencode/skill/
 ```bash
 # Copy skill to user config directory (available in all projects)
 mkdir -p ~/.config/opencode/skill
-cp -r zig-0.15 ~/.config/opencode/skill/
+cp -r zig-0-15 ~/.config/opencode/skill/
 ```
 
 **Method 3: Claude Code Compatible Installation**
@@ -82,11 +82,11 @@ cp -r zig-0.15 ~/.config/opencode/skill/
 ```bash
 # Project-level
 mkdir -p .claude/skills
-cp -r zig-0.15 .claude/skills/
+cp -r zig-0-15 .claude/skills/
 
 # Or global
 mkdir -p ~/.claude/skills
-cp -r zig-0.15 ~/.claude/skills/
+cp -r zig-0-15 ~/.claude/skills/
 ```
 
 ### Permission Configuration
@@ -97,7 +97,7 @@ Configure skill permissions in `opencode.json`:
 {
   "permission": {
     "skill": {
-      "zig-0.15": "allow"
+      "zig-0-15": "allow"
     }
   }
 }
@@ -115,7 +115,7 @@ Add to your project's `CLAUDE.md` or system configuration:
 ```markdown
 ## Zig Development
 
-When writing Zig code, always reference the zig-0.15 skill for correct API usage.
+When writing Zig code, always reference the zig-0-15 skill for correct API usage.
 ```
 
 ### For Other AI Tools
@@ -126,9 +126,9 @@ Copy the contents of `SKILL.md` into your AI tool's context or knowledge base.
 
 ```bash
 # Clone and install to OpenCode skill directory
-git clone https://github.com/user/zig-0.15-skill.git
+git clone https://github.com/user/zig-0-15-skill.git
 mkdir -p .opencode/skill
-cp -r zig-0.15-skill/zig-0.15 .opencode/skill/
+cp -r zig-0-15-skill/zig-0-15 .opencode/skill/
 ```
 
 ## Key API Changes Covered
@@ -150,7 +150,7 @@ All APIs in this skill have been verified against **Zig 0.15.2** source code:
 zig version  # Should be 0.15.x
 
 # Or use the provided script
-./skills/zig-0.15/scripts/check-zig-version.sh
+./skills/zig-0-15/scripts/check-zig-version.sh
 ```
 
 ## Library Resources

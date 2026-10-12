@@ -1,5 +1,5 @@
 ---
-name: zig-0.17
+name: zig-0-17
 description: Zig 0.17.0 API guidance and porting notes. Use this when writing or upgrading Zig code to the 0.17.0 stable release (@backingInt/@fromBackingInt, SafeAllocator, SoA type reflection, build system maker/configurer separation).
 license: MIT
 compatibility:

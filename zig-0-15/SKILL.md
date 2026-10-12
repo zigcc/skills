@@ -1,5 +1,5 @@
 ---
-name: zig-0.15
+name: zig-0-15
 description: This skill provides Zig 0.15.x API guidance and should be used when writing or reviewing Zig code. It ensures correct usage of Zig 0.15 APIs, preventing common mistakes from using outdated 0.11/0.12/0.13/0.14 patterns. Essential for ArrayList, std.Io.Writer/Reader (Writergate), HTTP client, Ed25519, JSON, and type introspection APIs.
 license: MIT
 compatibility:

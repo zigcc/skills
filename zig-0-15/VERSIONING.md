@@ -2,7 +2,7 @@
 
 ## Current Scope
 
-This skill (`zig-0.15`) is pinned to **Zig 0.15.x** (specifically 0.15.2).
+This skill (`zig-0-15`) is pinned to **Zig 0.15.x** (specifically 0.15.2).
 
 ## Why Version-Pin?
 
@@ -51,9 +51,9 @@ If the new version (e.g., 0.15.3) has only bug fixes:
 
 ### Option B: Create New Skill (Major Changes)
 If there's a new major release (e.g., 0.16.0) with breaking changes:
-1. Copy this skill to `skills/zig-0.16/`
+1. Copy this skill to `skills/zig-0-16/`
 2. Update all APIs and examples
-3. Keep `zig-0.15` for projects still on 0.15.x
+3. Keep `zig-0-15` for projects still on 0.15.x
 4. Update SKILL.md description to mention version
 
 ### Option C: Multi-Version Skill
